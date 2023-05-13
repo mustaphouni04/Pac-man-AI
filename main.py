@@ -7,9 +7,18 @@ import torch.optim as optim
 pygame.init()
 
 # Set up some constants
-WIDTH, HEIGHT = 600, 600
-ROWS, COLS = 10, 10
+WIDTH, HEIGHT = 1000, 400
+ROWS, COLS = 10, 25
 SQUARE_SIZE = WIDTH // COLS
+
+# Hyperparameters
+LEARNING_RATE = 0.01
+DISCOUNT_FACTOR = 0.8
+PACDOT_REWARD = 1
+WALL_PENALTY = -5
+MOVE_PENALTY = -0.5
+WIN_REWARD = 10
+LOSE_PENALTY = -10
 
 # Set up the display
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -25,6 +34,7 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 GREEN = (0, 200, 0)
 RED = (200, 0, 0)
+YELLOW = (255, 255, 0)
 
 def pos_in_grid(pos):
 	# Check if pos is in grid
@@ -43,26 +53,57 @@ class Grid:
 	def __init__(self):
 		self.reset()
 
-	def draw(self, win):
+	def draw(self, win, agent):
+		WIN.fill(BLACK)
 		# Draw grid lines
 		for i in range(ROWS):
 			for j in range(COLS):
 				pygame.draw.rect(win, WHITE, (j*SQUARE_SIZE, i*SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)		
 		
-		# Draw pac-dots
-
+		# Draw pac-dots and walls
+		for i in range(ROWS):
+			for j in range(COLS):
+				if self.matrix[i][j] == 1: #meaning we will draw a dot
+					# it has to pass through each cell, so every row and column will be multiplied by the square size and add it to the middle 
+					x = j * SQUARE_SIZE + SQUARE_SIZE // 2  # X-coordinate of the dot's center
+					y = i * SQUARE_SIZE + SQUARE_SIZE // 2  # Y-coordinate of the dot's center
+					radius = 3  # Radius of the dot
+					pygame.draw.circle(win, YELLOW, (x, y), radius)
+				elif self.matrix[i][j] == 2: #meaning we will draw a wall
+							x = j * SQUARE_SIZE + SQUARE_SIZE // 2  # X-coordinate of the top-left corner of the rhomboid
+							y = i * SQUARE_SIZE + SQUARE_SIZE // 2  # Y-coordinate of the top-left corner of the rhomboid
+							half_width = SQUARE_SIZE // 2  # Half the width of the rhombus
+							points = [
+								(x, y - half_width),  # Top point
+								(x + half_width, y),  # Right point
+								(x, y + half_width),  # Bottom point
+								(x - half_width, y)  # Left point
+							]
+							pygame.draw.polygon(WIN, GREEN, points)
 		# Draw Pac-man
+		WIN.blit(pacman_img, state_to_pos(agent.state))
 
 		# Draw ghosts
 
+		pygame.display.update()
 
 	def reset(self):
 		# Reset the game
-		self.matrix = np.ones((ROWS, COLS))
+		self.matrix = np.array([
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0],
+			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0],
+			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 0, 0, 0],
+			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 0, 0, 0],
+			[0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 0, 0, 0],
+			[0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 0, 0, 0],
+			[0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 0, 0, 0],
+			[0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 0, 0, 0],
+			[0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0]])
 	
 	def start_state(self):
 		# Return the start state
-		return (0, 0)
+		return (7, 16)
 	
 	def step(self, state, action):
 		# Calculate next state based on action
@@ -81,31 +122,31 @@ class Grid:
 		if n_pac_dots == 0:
 			# all pac-dots eaten
 			done = True
-			reward = 10
+			reward = WIN_REWARD
 		elif pos_in_grid(next_state) and self.matrix[next_state] == -1:
 			# Pac-Man caught by ghost
 			done = True
-			reward = -10
+			reward = LOSE_PENALTY
 		else:
 			done = False
 			if not pos_in_grid(next_state) or self.matrix[next_state] == 2:
 				# out of grid or collision with wall
 				next_state = state
-				reward = -1
+				reward = WALL_PENALTY
 			elif self.matrix[next_state] == 1:
 				# collision with pac-dot
 				self.matrix[next_state] = 0
-				reward = 1
+				reward = PACDOT_REWARD
 			else:
-				# no collision
-				reward = -0.1
+				# move to empty space
+				reward = MOVE_PENALTY
 
 		return next_state, reward, done
 
 
 # Agent class (Pac-man)
 class Agent:
-	def __init__(self, num_states, num_actions, alpha=0.5, gamma=0.95):
+	def __init__(self, num_states, num_actions, alpha=LEARNING_RATE, gamma=DISCOUNT_FACTOR):
 		self.num_states = num_states
 		self.num_actions = num_actions
 		self.alpha = alpha  # learning rate
@@ -140,8 +181,6 @@ FPS = 3
 
 # Initialize the grid
 grid = Grid()
-WIN.fill((0, 0, 0))
-grid.draw(WIN)
 pygame.display.update()
 
 # Initialize the agent
@@ -149,7 +188,7 @@ agent = Agent(num_states=ROWS*COLS*ROWS*COLS, num_actions=4)
 
 # Training loop
 print("training agent...")
-for episode in range(10): # number of games
+for episode in range(50000): # number of games
 	agent.state = grid.start_state()  # Start state from the grid
 	done = False
 	while not done:
@@ -180,10 +219,6 @@ while run:
 		new_state, _, done = grid.step(agent.state, action)
 		print("new agent state: ", new_state)
 		
-		# Render the new state of the grid
-		WIN.fill((0, 0, 0))
-		grid.draw(WIN)
-		
 		# Update the current state
 		agent.state = new_state
 	else:
@@ -194,8 +229,7 @@ while run:
 		done = False
 
 	# Update the display
-	WIN.blit(pacman_img, state_to_pos(agent.state))
-	pygame.display.update()
+	grid.draw(WIN, agent)
 	clock.tick(FPS)
 
 	
