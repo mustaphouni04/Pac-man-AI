@@ -1,46 +1,50 @@
-import torch, pygame, random
+import pygame, random
 import numpy as np
-from torch import nn, softmax
-import torch.optim as optim
 
 # Initialize Pygame
 pygame.init()
 
 # Set up some constants
-WIDTH, HEIGHT = 800, 800
-ROWS, COLS = 11, 11
+FPS = 5
+GHOSTS_DELAY_TRACKING = (2, 5, 10, 15)
+WIDTH, HEIGHT = 1000, 400
+ROWS, COLS = 10, 25
 SQUARE_SIZE = WIDTH // COLS
-INITIAL_MATRIX = np.array([
-[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-[1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-[1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
-[1, 2, 1, 2, 2, 0, 2, 2, 1, 2, 1],
-[1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
-[1, 2, 1, 2, 0, 0, 0, 2, 1, 2, 1],
-[1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
-[1, 2, 1, 2, 2, 2, 2, 2, 1, 2, 1],
-[1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
-[1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-[1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]
-])
 # INITIAL_MATRIX = np.array([
-# [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1],
-# [0, 2, 2, 0, 2, 2, 0, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
-# [0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1],
-# [0, 2, 0, 0, 0, 2, 0, 1, 1, 1, 1, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 1, 2, 2],
-# [0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 1],
-# [0, 2, 2, 2, 2, 2, 0, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 1],
-# [0, 0, 0, 2, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1],
-# [1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1],
-# [1, 2, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1],
-# [1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1]
+#     [0, 1, 0, 2, 4],
+#     [1, 2, 0, 2, 0],
+#     [0, 2, 1, 2, 1],
+#     [1, 2, 0, 2, 0],
+#     [3, 2, 1, 0, 1],
 # ])
-# set start x and y to the position in the matrix of the 3
-START_X, START_Y = np.where(INITIAL_MATRIX == 3)
-START_X, START_Y = START_X[0], START_Y[0]
+# INITIAL_MATRIX = np.array([
+# [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+# [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+# [1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+# [1, 2, 1, 2, 2, 0, 2, 2, 1, 2, 1],
+# [1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
+# [1, 2, 1, 2, 0, 0, 0, 2, 1, 2, 1],
+# [1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
+# [1, 2, 1, 2, 2, 2, 2, 2, 1, 2, 1],
+# [1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+# [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+# [1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]
+# ])
+INITIAL_MATRIX = np.array([
+[0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1],
+[0, 2, 2, 0, 2, 2, 0, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+[0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1],
+[0, 2, 0, 0, 0, 2, 0, 1, 1, 1, 1, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 1, 2, 2],
+[0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 1],
+[0, 2, 2, 2, 2, 2, 0, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 1],
+[0, 0, 0, 2, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1],
+[1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1],
+[1, 2, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1],
+[1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1]
+])
 
 # Hyperparameters
-TRAINING_GAMES = 100
+TRAINING_GAMES = 500
 LIMIT_STEPS = 300
 LEARNING_RATE = 0.01
 DISCOUNT_FACTOR = 0.8
@@ -49,7 +53,7 @@ MOVE_PENALTY = -0.1
 WIN_REWARD = 100
 LOSE_PENALTY = -30
 EPSILON_START = 1
-EPSILON_END = 0.1
+EPSILON_END = 0.01
 EPSILON_DECAY = 0.999
 
 # Set up the display
@@ -85,7 +89,7 @@ def pos_in_grid(pos):
 	return pos[0] >= 0 and pos[0] < ROWS and pos[1] >= 0 and pos[1] < COLS
 
 def get_relative_position(agent_pos, dot_pos):
-    return (dot_pos[0] - agent_pos[0], dot_pos[1] - agent_pos[1])
+	return (dot_pos[0] - agent_pos[0], dot_pos[1] - agent_pos[1])
 
 def state_to_pos(state):
 	x, y = state
@@ -141,7 +145,6 @@ class Grid:
 		# Draw Pac-man
 		# 295, 115, 15, -15
 		x, y = state_to_pos((x, y))
-		print(action)
 		if action == 0: # UP
 			rotated_image = pygame.transform.rotate(pac_man_image_open, 115)
 			WIN.blit(rotated_image, (x, y))
@@ -156,25 +159,16 @@ class Grid:
 			rotated_image = pygame.transform.rotate(pac_man_image_open, 15)
 			WIN.blit(rotated_image, (x, y))	
 		
-	def draw_ghosts(self):
+	def draw_ghosts(self, ghosts):
 		# Draw ghosts
-		num_ghosts = 0
-		for i in range(ROWS):
-			for j in range(COLS):
-				if self.matrix[i][j] == 4:
-					num_ghosts += 1
-					if num_ghosts == 1:
-						WIN.blit(ghost_image1, (j * SQUARE_SIZE, i * SQUARE_SIZE))
-					elif num_ghosts == 2:
-						WIN.blit(ghost_image2, (j * SQUARE_SIZE, i * SQUARE_SIZE))
-					elif num_ghosts == 3:
-						WIN.blit(ghost_image3, (j * SQUARE_SIZE, i * SQUARE_SIZE))
-					elif num_ghosts == 4:
-						WIN.blit(ghost_image4, (j * SQUARE_SIZE, i * SQUARE_SIZE))	
+		ghosts_images = [ghost_image1, ghost_image2, ghost_image3, ghost_image4]
+		for i, ghost in enumerate(ghosts):
+			x, y = state_to_pos(ghost.state)
+			WIN.blit(ghosts_images[i], (x, y))
 
 	def draw_score(self, score):
 		# draw the score board
-		font = pygame.font.Font(None, 18)
+		font = pygame.font.Font(None, 36)
 		text = "SCORE: " + str(score)
 		text_surface = font.render(text, True, (255,255,255))
 		# Blit the text surface onto the game window (top-left corner)
@@ -183,6 +177,8 @@ class Grid:
 	def reset(self):
 		# Reset the game
 		self.matrix = INITIAL_MATRIX.copy()
+		# leave the matric without pac-man and ghosts
+		self.matrix *= (self.matrix != 3) & (self.matrix != 4)
 	
 	def start_state(self):
 		# Return the start state
@@ -193,6 +189,8 @@ class Grid:
 		# Calculate next state based on action
 		# If action leads to a wall, next_state = state
 		next_state = get_next_state(state, action)
+		if not pos_in_grid(next_state):
+			print(f"{state} -> {next_state} -> {action}")
 
 		# Check if game is done
 		n_pac_dots = np.sum(self.matrix == 1)
@@ -200,23 +198,23 @@ class Grid:
 			# all pac-dots eaten
 			done = True
 			reward = WIN_REWARD
-			code = "WIN"
+			code = 0
 		elif self.matrix[next_state] == 4:
 			# Pac-Man caught by ghost
 			done = True
 			reward = LOSE_PENALTY
-			code = "LOSE"
+			code = 1
 		else:
 			done = False
 			if self.matrix[next_state] == 1:
 				# collision with pac-dot
 				self.matrix[next_state] = 0
 				reward = PACDOT_REWARD
-				code = "IN PROGRESS, EATING PAC-DOT"
+				code = 2
 			else:
 				# move to empty space
 				reward = MOVE_PENALTY
-				code = "IN PROGRESS, MOVING"
+				code = 3
 
 		return next_state, reward, done, code
 
@@ -273,40 +271,80 @@ class Agent:
 		if self.epsilon > self.epsilon_end:
 			self.epsilon *= self.epsilon_decay
 
-# def SmoothMovement():
 
-# 	desired_fps = 60  # Set frame rate to 60 FPS
-# 	clock.tick(desired_fps)
+class Ghost:
+	def __init__(self, id_, state, goal):
+		self.id = id_
+		self.initial_state = state
+		self.goal = goal
+		self.reset()
 
-# 	elapsed_time = clock.tick(desired_fps) / 1000.0  # convert elapsed time to seconds
-# 	interpolation_factor = elapsed_time * desired_fps
+	def choose_action(self, goal, grid):
+		self.visited = np.zeros((ROWS, COLS))
+		if self.counter > 0:
+			self.path = self.dfs(self.state, goal, grid)
+			self.counter -= 1
+		if self.path == None or len(self.path) == 0:
+			possible_actions = np.array([])
+			for i in range(4):
+				next_state = get_next_state(self.state, i)
+				if pos_in_grid(next_state) and self.grid[next_state] != 2:
+					possible_actions = np.append(possible_actions, 1)
+				else:
+					possible_actions = np.append(possible_actions, 0)
+			return np.random.choice(4, p=possible_actions/np.count_nonzero(possible_actions))
 
-# 	current_x, current_y = agent.state
-# 	target_x, target_y = next_state
-# 	# calculate interpolated position
-# 	interpolated_x = current_x + (target_x - current_x) * interpolation_factor
-# 	interpolated_y = current_y + (target_y - current_y) * interpolation_factor
+		return self.path.pop(0)
 
-# 	# Update object position
-# 	current_x = interpolated_x
-# 	current_y = interpolated_y
+	def dfs(self, position, goal, grid):
+		if position == goal:
+			return []
+
+		for direction in range(4):
+			new_pos = get_next_state(position, direction)
+
+			if pos_in_grid(new_pos) and grid[new_pos] != 2 and not self.visited[new_pos]:
+				self.visited[new_pos] = 1
+				path = self.dfs(new_pos, goal, grid)
+				if path is not None:
+					return [direction] + path
+		
+				self.visited[new_pos] = 0
+		return None
+
+	def update(self, matrix, goal):
+		self.grid = matrix
+		self.goal = goal
+	
+	def reset(self):
+		self.state = self.initial_state
+		self.counter = GHOSTS_DELAY_TRACKING[self.id]
+		self.update(INITIAL_MATRIX, self.goal)
 
 
 # Initialize the clock
 clock = pygame.time.Clock()
-FPS = 120
+
+# Initialize the agent
+START_X, START_Y = np.where(INITIAL_MATRIX == 3)
+START_X, START_Y = START_X[0], START_Y[0]
+agent = Agent(num_actions=4)
+code_meaning = {0:"WIN", 1:"LOSE", 2:"IN PROGRESS, EATING PAC-DOT", 3:"IN PROGRESS, MOVING"}
+
+# Initialize the ghosts
+positions = np.where(INITIAL_MATRIX == 4)
+positions = list(zip(positions[0], positions[1]))
+ghosts = [Ghost(i, positions[i], agent.state) for i in range(4)]
+saved_vals = [0 for _ in range(4)]
 
 # Initialize the grid
 grid = Grid()
-
-# Initialize the agent
-agent = Agent(num_actions=4)
 
 # Training loop
 print("training agent...")
 for episode in range(TRAINING_GAMES): # number of games
 	grid.reset()
-	agent.state = grid.start_state()  # Start state from the grid
+	agent.state = grid.start_state() # Start state from the grid
 	done = False
 	steps = 0
 	actions = np.array([0, 0, 0, 0])
@@ -322,13 +360,14 @@ for episode in range(TRAINING_GAMES): # number of games
 		agent.update_Q_table(action, reward, next_state)
 		agent.state = next_state
 		if done:
-			print(f"{episode}: code, {code}, {steps} steps, {actions}")
+			print(f"{episode}: code, {code_meaning[code]}, {steps} steps, {actions}")
 		steps += 1
 print("agent trained")
 
 # Main loop
-# The square where Pac-Man will start the game
-action = 0
+action = 3
+score = 0
+code = 1
 
 run = True
 done = True
@@ -348,21 +387,47 @@ while run:
 		
 		# Update the current state
 		agent.state = new_state
+		if code == 2:
+			score += 10
 	if done:
 		# Reset the grid and state when game is over
-		print(f"game over ({code}), resetting...")
+		print(f"game over ({code_meaning[code]}), resetting...")
 		grid.reset()
 		agent.state = (START_X, START_Y) # grid.start_state()
+		for ghost in ghosts:
+			ghost.reset()
 		done = False
+		score = 0
 
 	x, y = agent.state
+
+	# move the ghosts
+	for i, ghost in enumerate(ghosts):
+		ghost.update(grid.matrix, agent.state)
+		# Choose an action
+		g_action = ghost.choose_action(agent.state, grid.matrix)
+		if g_action == -1:
+			continue
+		# Execute the action and get the new state
+		new_state, _, _, _ = grid.step(ghost.state, g_action)
+		# print(f"ghost state: {ghost.state} -> {g_action} -> {new_state}")
+		
+		# Update the current state
+		grid.matrix[ghost.state] = saved_vals[i]
+		saved_vals[i] = grid.matrix[new_state]
+		ghost.state = new_state
+		# grid.matrix[ghost.state] = 4
+		if ghost.state == agent.state:
+			print(f"game over, ghost {i} got you!")
+			done = True
+			break
 
 	# Update the display
 	WIN.fill(BLACK)
 	grid.draw_dots_walls()
-	grid.draw_score(100)
+	grid.draw_score(score)
 	grid.draw_pac_man(x, y, action)
-	grid.draw_ghosts()
+	grid.draw_ghosts(ghosts)
 	pygame.display.update()
 	clock.tick(FPS)
 	
