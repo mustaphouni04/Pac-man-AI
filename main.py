@@ -3,6 +3,7 @@ import numpy as np
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()
 
 # Set up some constants
 FPS = 5
@@ -44,7 +45,7 @@ INITIAL_MATRIX = np.array([
 ])
 
 # Hyperparameters
-TRAINING_GAMES = 500
+TRAINING_GAMES = 50
 LIMIT_STEPS = 300
 LEARNING_RATE = 0.01
 DISCOUNT_FACTOR = 0.8
@@ -141,10 +142,10 @@ class Grid:
 					]
 					pygame.draw.polygon(WIN, GREEN, points)
 		
-	def draw_pac_man(self, x, y, action):
+	def draw_pac_man(self, state, action):
 		# Draw Pac-man
 		# 295, 115, 15, -15
-		x, y = state_to_pos((x, y))
+		x, y = state_to_pos(state)
 		if action == 0: # UP
 			rotated_image = pygame.transform.rotate(pac_man_image_open, 115)
 			WIN.blit(rotated_image, (x, y))
@@ -185,7 +186,7 @@ class Grid:
 		possible_tiles = empty_tiles(self.matrix)
 		return possible_tiles[random.randint(0, len(possible_tiles)-1)] # (7, 16)
 	
-	def step(self, state, action):
+	def step(self, state, action, is_agent=True):
 		# Calculate next state based on action
 		# If action leads to a wall, next_state = state
 		next_state = get_next_state(state, action)
@@ -208,7 +209,8 @@ class Grid:
 			done = False
 			if self.matrix[next_state] == 1:
 				# collision with pac-dot
-				self.matrix[next_state] = 0
+				if is_agent:
+					self.matrix[next_state] = 0
 				reward = PACDOT_REWARD
 				code = 2
 			else:
@@ -228,7 +230,7 @@ class Agent:
 		self.epsilon = epsilon_start  # exploration rate
 		self.epsilon_end = epsilon_end
 		self.epsilon_decay = epsilon_decay
-		self.state = (0, 0)
+		self.reset()
 
 		# Initialize the Q-table to zeros
 		self.Q_table = np.zeros((ROWS, COLS, num_actions))
@@ -271,6 +273,9 @@ class Agent:
 		if self.epsilon > self.epsilon_end:
 			self.epsilon *= self.epsilon_decay
 
+	def reset(self):
+		# Reset the agent state
+		self.state = (START_X, START_Y)
 
 class Ghost:
 	def __init__(self, id_, state, goal):
@@ -363,18 +368,31 @@ for episode in range(TRAINING_GAMES): # number of games
 			print(f"{episode}: code, {code_meaning[code]}, {steps} steps, {actions}")
 		steps += 1
 print("agent trained")
+agent.reset()
+grid.reset()
 
 # Main loop
+pygame.mixer.music.load("assets/pacman_beginning.wav")
+
 action = 3
 score = 0
 code = 1
-
 run = True
 done = True
+WIN.fill(BLACK)
+grid.draw_dots_walls()
+grid.draw_score(score)
+grid.draw_pac_man(agent.state, action)
+grid.draw_ghosts(ghosts)
+pygame.display.update()
+pygame.mixer.music.play()
 while run:
 	for event in pygame.event.get():
 		if event.type == pygame.QUIT:
 			run = False
+	
+	if pygame.mixer.music.get_busy():
+		continue
 
 	# Game logic
 	# move the agent
@@ -393,13 +411,12 @@ while run:
 		# Reset the grid and state when game is over
 		print(f"game over ({code_meaning[code]}), resetting...")
 		grid.reset()
-		agent.state = (START_X, START_Y) # grid.start_state()
+		agent.reset() # grid.start_state()
+		action = 3
 		for ghost in ghosts:
 			ghost.reset()
 		done = False
 		score = 0
-
-	x, y = agent.state
 
 	# move the ghosts
 	for i, ghost in enumerate(ghosts):
@@ -409,7 +426,7 @@ while run:
 		if g_action == -1:
 			continue
 		# Execute the action and get the new state
-		new_state, _, _, _ = grid.step(ghost.state, g_action)
+		new_state, _, _, _ = grid.step(ghost.state, g_action, is_agent=False)
 		# print(f"ghost state: {ghost.state} -> {g_action} -> {new_state}")
 		
 		# Update the current state
@@ -426,7 +443,7 @@ while run:
 	WIN.fill(BLACK)
 	grid.draw_dots_walls()
 	grid.draw_score(score)
-	grid.draw_pac_man(x, y, action)
+	grid.draw_pac_man(agent.state, action)
 	grid.draw_ghosts(ghosts)
 	pygame.display.update()
 	clock.tick(FPS)
