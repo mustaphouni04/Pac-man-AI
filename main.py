@@ -1,24 +1,56 @@
 import torch, pygame, random
 import numpy as np
-from torch import nn
+from torch import nn, softmax
 import torch.optim as optim
 
 # Initialize Pygame
 pygame.init()
 
 # Set up some constants
-WIDTH, HEIGHT = 1000, 400
-ROWS, COLS = 10, 25
+WIDTH, HEIGHT = 800, 800
+ROWS, COLS = 11, 11
 SQUARE_SIZE = WIDTH // COLS
+INITIAL_MATRIX = np.array([
+[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+[1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+[1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+[1, 2, 1, 2, 2, 0, 2, 2, 1, 2, 1],
+[1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
+[1, 2, 1, 2, 0, 0, 0, 2, 1, 2, 1],
+[1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
+[1, 2, 1, 2, 2, 2, 2, 2, 1, 2, 1],
+[1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+[1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+[1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]
+])
+# INITIAL_MATRIX = np.array([
+# [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1],
+# [0, 2, 2, 0, 2, 2, 0, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
+# [0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1],
+# [0, 2, 0, 0, 0, 2, 0, 1, 1, 1, 1, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 1, 2, 2],
+# [0, 2, 4, 0, 4, 2, 0, 2, 2, 2, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 2, 1],
+# [0, 2, 2, 2, 2, 2, 0, 2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 2, 1],
+# [0, 0, 0, 2, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 1],
+# [1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1],
+# [1, 2, 1, 1, 1, 2, 1, 2, 2, 2, 1, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1],
+# [1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1]
+# ])
+# set start x and y to the position in the matrix of the 3
+START_X, START_Y = np.where(INITIAL_MATRIX == 3)
+START_X, START_Y = START_X[0], START_Y[0]
 
 # Hyperparameters
+TRAINING_GAMES = 100
+LIMIT_STEPS = 300
 LEARNING_RATE = 0.01
 DISCOUNT_FACTOR = 0.8
-PACDOT_REWARD = 1
-WALL_PENALTY = -5
-MOVE_PENALTY = -0.5
-WIN_REWARD = 10
-LOSE_PENALTY = -10
+PACDOT_REWARD = 2
+MOVE_PENALTY = -0.1
+WIN_REWARD = 100
+LOSE_PENALTY = -30
+EPSILON_START = 1
+EPSILON_END = 0.1
+EPSILON_DECAY = 0.999
 
 # Set up the display
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -26,8 +58,20 @@ WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 # Set up the title and icon
 pygame.display.set_caption("Pac-man AI")
 icon = pygame.image.load("assets/pacman.png")
-pacman_img = pygame.image.load("assets/pacman.png")
 pygame.display.set_icon(icon)
+pac_man_image_open = pygame.image.load("assets\pac_man_abierto.png")
+pac_man_image_open = pygame.transform.scale(pac_man_image_open, (SQUARE_SIZE, SQUARE_SIZE))
+pac_man_image_closed = pygame.image.load("assets\pac_man_cerrado.png")
+pac_man_image_closed = pygame.transform.scale(pac_man_image_closed, (SQUARE_SIZE, SQUARE_SIZE))
+ghost_image1 = pygame.image.load("assets/biene.png")
+ghost_image2 = pygame.image.load("assets/biene2.png")
+ghost_image3 = pygame.image.load("assets/biene3.png")
+ghost_image4 = pygame.image.load("assets/biene4.png")
+
+ghost_image1 = pygame.transform.scale(ghost_image1, (SQUARE_SIZE, SQUARE_SIZE))
+ghost_image2 = pygame.transform.scale(ghost_image2, (SQUARE_SIZE, SQUARE_SIZE))
+ghost_image3 = pygame.transform.scale(ghost_image3, (SQUARE_SIZE, SQUARE_SIZE))
+ghost_image4 = pygame.transform.scale(ghost_image4, (SQUARE_SIZE, SQUARE_SIZE))
 
 # Colors
 BLACK = (0, 0, 0)
@@ -40,26 +84,38 @@ def pos_in_grid(pos):
 	# Check if pos is in grid
 	return pos[0] >= 0 and pos[0] < ROWS and pos[1] >= 0 and pos[1] < COLS
 
-def state_to_index(state):
-    x, y = state
-    return x * COLS + y
+def get_relative_position(agent_pos, dot_pos):
+    return (dot_pos[0] - agent_pos[0], dot_pos[1] - agent_pos[1])
 
 def state_to_pos(state):
 	x, y = state
 	return (y * SQUARE_SIZE, x * SQUARE_SIZE)
+
+def empty_tiles(matrix):
+	# Return a list of empty tiles
+	empty_tiles = []
+	for i in range(ROWS):
+		for j in range(COLS):
+			if matrix[i][j] != 2:
+				empty_tiles.append((i, j))
+	return empty_tiles
+
+def get_next_state(state, action):
+	if action == 0: # Up
+		return (state[0] - 1, state[1])
+	elif action == 1: # Down
+		return (state[0] + 1, state[1])
+	elif action == 2: # Left
+		return (state[0], state[1] - 1)
+	elif action == 3: # Right
+		return (state[0], state[1] + 1)
 
 # Grid class
 class Grid:
 	def __init__(self):
 		self.reset()
 
-	def draw(self, win, agent):
-		WIN.fill(BLACK)
-		# Draw grid lines
-		for i in range(ROWS):
-			for j in range(COLS):
-				pygame.draw.rect(win, WHITE, (j*SQUARE_SIZE, i*SQUARE_SIZE, SQUARE_SIZE, SQUARE_SIZE), 1)		
-		
+	def draw_dots_walls(self):
 		# Draw pac-dots and walls
 		for i in range(ROWS):
 			for j in range(COLS):
@@ -68,54 +124,75 @@ class Grid:
 					x = j * SQUARE_SIZE + SQUARE_SIZE // 2  # X-coordinate of the dot's center
 					y = i * SQUARE_SIZE + SQUARE_SIZE // 2  # Y-coordinate of the dot's center
 					radius = 3  # Radius of the dot
-					pygame.draw.circle(win, YELLOW, (x, y), radius)
+					pygame.draw.circle(WIN, YELLOW, (x, y), radius)
 				elif self.matrix[i][j] == 2: #meaning we will draw a wall
-							x = j * SQUARE_SIZE + SQUARE_SIZE // 2  # X-coordinate of the top-left corner of the rhomboid
-							y = i * SQUARE_SIZE + SQUARE_SIZE // 2  # Y-coordinate of the top-left corner of the rhomboid
-							half_width = SQUARE_SIZE // 2  # Half the width of the rhombus
-							points = [
-								(x, y - half_width),  # Top point
-								(x + half_width, y),  # Right point
-								(x, y + half_width),  # Bottom point
-								(x - half_width, y)  # Left point
-							]
-							pygame.draw.polygon(WIN, GREEN, points)
+					x = j * SQUARE_SIZE + SQUARE_SIZE // 2  # X-coordinate of the top-left corner of the rhomboid
+					y = i * SQUARE_SIZE + SQUARE_SIZE // 2  # Y-coordinate of the top-left corner of the rhomboid
+					half_width = SQUARE_SIZE // 2  # Half the width of the rhombus
+					points = [
+						(x, y - half_width),  # Top point
+						(x + half_width, y),  # Right point
+						(x, y + half_width),  # Bottom point
+						(x - half_width, y)  # Left point
+					]
+					pygame.draw.polygon(WIN, GREEN, points)
+		
+	def draw_pac_man(self, x, y, action):
 		# Draw Pac-man
-		WIN.blit(pacman_img, state_to_pos(agent.state))
-
+		# 295, 115, 15, -15
+		x, y = state_to_pos((x, y))
+		print(action)
+		if action == 0: # UP
+			rotated_image = pygame.transform.rotate(pac_man_image_open, 115)
+			WIN.blit(rotated_image, (x, y))
+		elif action == 1: # DOWN
+			rotated_image = pygame.transform.rotate(pac_man_image_open, 295)
+			WIN.blit(rotated_image, (x, y))
+		elif action == 2: # LEFT
+			flipped_image = pygame.transform.flip(pac_man_image_open, True, False)
+			rotated_image = pygame.transform.rotate(flipped_image, -15)
+			WIN.blit(rotated_image, (x, y))
+		elif action == 3: # RIGHT
+			rotated_image = pygame.transform.rotate(pac_man_image_open, 15)
+			WIN.blit(rotated_image, (x, y))	
+		
+	def draw_ghosts(self):
 		# Draw ghosts
+		num_ghosts = 0
+		for i in range(ROWS):
+			for j in range(COLS):
+				if self.matrix[i][j] == 4:
+					num_ghosts += 1
+					if num_ghosts == 1:
+						WIN.blit(ghost_image1, (j * SQUARE_SIZE, i * SQUARE_SIZE))
+					elif num_ghosts == 2:
+						WIN.blit(ghost_image2, (j * SQUARE_SIZE, i * SQUARE_SIZE))
+					elif num_ghosts == 3:
+						WIN.blit(ghost_image3, (j * SQUARE_SIZE, i * SQUARE_SIZE))
+					elif num_ghosts == 4:
+						WIN.blit(ghost_image4, (j * SQUARE_SIZE, i * SQUARE_SIZE))	
 
-		pygame.display.update()
+	def draw_score(self, score):
+		# draw the score board
+		font = pygame.font.Font(None, 18)
+		text = "SCORE: " + str(score)
+		text_surface = font.render(text, True, (255,255,255))
+		# Blit the text surface onto the game window (top-left corner)
+		WIN.blit(text_surface, (0, 0))
 
 	def reset(self):
 		# Reset the game
-		self.matrix = np.array([
-			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-			[0, 2, 2, 0, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0],
-			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 1, 1, 2, 0, 0, 0, 0, 0, 0],
-			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 2, 2, 2, 1, 2, 1, 2, 2, 2, 2, 0, 0, 0],
-			[0, 2, 0, 0, 0, 2, 0, 0, 0, 0, 0, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 0, 0, 0],
-			[0, 2, 2, 2, 2, 2, 0, 0, 0, 0, 0, 2, 1, 2, 2, 2, 2, 2, 2, 2, 1, 2, 0, 0, 0],
-			[0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 0, 0, 0],
-			[0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 0, 0, 0],
-			[0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 2, 2, 1, 2, 2, 2, 1, 2, 0, 0, 0],
-			[0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0]])
+		self.matrix = INITIAL_MATRIX.copy()
 	
 	def start_state(self):
 		# Return the start state
-		return (7, 16)
+		possible_tiles = empty_tiles(self.matrix)
+		return possible_tiles[random.randint(0, len(possible_tiles)-1)] # (7, 16)
 	
 	def step(self, state, action):
 		# Calculate next state based on action
 		# If action leads to a wall, next_state = state
-		if action == 0: # Up
-			next_state = (state[0] - 1, state[1])
-		elif action == 1: # Down
-			next_state = (state[0] + 1, state[1])
-		elif action == 2: # Left
-			next_state = (state[0], state[1] - 1)
-		elif action == 3: # Right
-			next_state = (state[0], state[1] + 1)
+		next_state = get_next_state(state, action)
 
 		# Check if game is done
 		n_pac_dots = np.sum(self.matrix == 1)
@@ -123,84 +200,136 @@ class Grid:
 			# all pac-dots eaten
 			done = True
 			reward = WIN_REWARD
-		elif pos_in_grid(next_state) and self.matrix[next_state] == -1:
+			code = "WIN"
+		elif self.matrix[next_state] == 4:
 			# Pac-Man caught by ghost
 			done = True
 			reward = LOSE_PENALTY
+			code = "LOSE"
 		else:
 			done = False
-			if not pos_in_grid(next_state) or self.matrix[next_state] == 2:
-				# out of grid or collision with wall
-				next_state = state
-				reward = WALL_PENALTY
-			elif self.matrix[next_state] == 1:
+			if self.matrix[next_state] == 1:
 				# collision with pac-dot
 				self.matrix[next_state] = 0
 				reward = PACDOT_REWARD
+				code = "IN PROGRESS, EATING PAC-DOT"
 			else:
 				# move to empty space
 				reward = MOVE_PENALTY
+				code = "IN PROGRESS, MOVING"
 
-		return next_state, reward, done
+		return next_state, reward, done, code
 
 
 # Agent class (Pac-man)
 class Agent:
-	def __init__(self, num_states, num_actions, alpha=LEARNING_RATE, gamma=DISCOUNT_FACTOR):
-		self.num_states = num_states
+	def __init__(self, num_actions, alpha=LEARNING_RATE, gamma=DISCOUNT_FACTOR, epsilon_start=EPSILON_START, epsilon_end=EPSILON_END, epsilon_decay=EPSILON_DECAY):
 		self.num_actions = num_actions
 		self.alpha = alpha  # learning rate
 		self.gamma = gamma  # discount factor
+		self.epsilon = epsilon_start  # exploration rate
+		self.epsilon_end = epsilon_end
+		self.epsilon_decay = epsilon_decay
 		self.state = (0, 0)
 
-		# Initialize the Q-table to small random values
-		self.Q_table = np.random.uniform(low=0, high=1, size=(num_states, num_actions))
+		# Initialize the Q-table to zeros
+		self.Q_table = np.zeros((ROWS, COLS, num_actions))
 
-	def choose_action(self):
+	def choose_action(self, matrix):
 		# Return the action with the highest Q-value for the current state
 		# This represents the policy
-		index = state_to_index(self.state)
-		return np.argmax(self.Q_table[index])
+		if np.random.rand() < self.epsilon:
+			# Choose a random action
+			possible_actions = np.array([])
+			for i in range(self.num_actions):
+				next_state = get_next_state(self.state, i)
+				if pos_in_grid(next_state) and matrix[next_state] != 2:
+					possible_actions = np.append(possible_actions, 1)
+				else:
+					possible_actions = np.append(possible_actions, 0)
+			return np.random.choice(self.num_actions, p=possible_actions/np.count_nonzero(possible_actions))
+		else:
+			# Choose the best known action that is valid
+			possible_actions = np.array([])
+			for i in range(self.num_actions):
+				next_state = get_next_state(self.state, i)
+				if pos_in_grid(next_state) and matrix[next_state] != 2:
+					possible_actions = np.append(possible_actions, self.Q_table[self.state][i])
+				else:
+					possible_actions = np.append(possible_actions, -np.inf)
+			return np.argmax(possible_actions)
 
 	def update_Q_table(self, action, reward, next_state):
 		# Calculate the current Q-value
-		index = state_to_index(self.state)
-		current_q_value = self.Q_table[index][action]
+		current_q_value = self.Q_table[self.state][action]
 
 		# Calculate the maximum Q-value for the next state
-		index2 = state_to_index(next_state)
-		next_max_q_value = np.max(self.Q_table[index2])
+		next_max_q_value = np.max(self.Q_table[next_state])
 
 		# Update the Q-value for the current state-action pair
-		self.Q_table[index][action] = (1 - self.alpha) * current_q_value + self.alpha * (reward + self.gamma * next_max_q_value)
+		self.Q_table[self.state][action] = (1 - self.alpha) * current_q_value + self.alpha * (reward + self.gamma * next_max_q_value)
+
+		# Decay epsilon
+		if self.epsilon > self.epsilon_end:
+			self.epsilon *= self.epsilon_decay
+
+# def SmoothMovement():
+
+# 	desired_fps = 60  # Set frame rate to 60 FPS
+# 	clock.tick(desired_fps)
+
+# 	elapsed_time = clock.tick(desired_fps) / 1000.0  # convert elapsed time to seconds
+# 	interpolation_factor = elapsed_time * desired_fps
+
+# 	current_x, current_y = agent.state
+# 	target_x, target_y = next_state
+# 	# calculate interpolated position
+# 	interpolated_x = current_x + (target_x - current_x) * interpolation_factor
+# 	interpolated_y = current_y + (target_y - current_y) * interpolation_factor
+
+# 	# Update object position
+# 	current_x = interpolated_x
+# 	current_y = interpolated_y
 
 
 # Initialize the clock
 clock = pygame.time.Clock()
-FPS = 3
+FPS = 120
 
 # Initialize the grid
 grid = Grid()
-pygame.display.update()
 
 # Initialize the agent
-agent = Agent(num_states=ROWS*COLS*ROWS*COLS, num_actions=4)
+agent = Agent(num_actions=4)
 
 # Training loop
 print("training agent...")
-for episode in range(50000): # number of games
+for episode in range(TRAINING_GAMES): # number of games
+	grid.reset()
 	agent.state = grid.start_state()  # Start state from the grid
 	done = False
+	steps = 0
+	actions = np.array([0, 0, 0, 0])
 	while not done:
-		action = agent.choose_action()
+		action = agent.choose_action(grid.matrix)
+		actions[action] += 1
 	
 		# Assume the game environment provides the next_state and reward.
-		next_state, reward, done = grid.step(agent.state, action)
+		next_state, reward, done, code = grid.step(agent.state, action)
+		if steps > LIMIT_STEPS:
+			done = True
+			reward = LOSE_PENALTY
 		agent.update_Q_table(action, reward, next_state)
 		agent.state = next_state
+		if done:
+			print(f"{episode}: code, {code}, {steps} steps, {actions}")
+		steps += 1
 print("agent trained")
 
 # Main loop
+# The square where Pac-Man will start the game
+action = 0
+
 run = True
 done = True
 while run:
@@ -211,26 +340,30 @@ while run:
 	# Game logic
 	# move the agent
 	if not done:
-		print("agent state: ", agent.state)
 		# Choose an action
-		action = agent.choose_action()
-		print("agent chooses action: ", action)
+		action = agent.choose_action(grid.matrix)
 		# Execute the action and get the new state
-		new_state, _, done = grid.step(agent.state, action)
-		print("new agent state: ", new_state)
+		new_state, _, done, code = grid.step(agent.state, action)
+		# print(f"agent state: {agent.state} -> {action} -> {new_state}")
 		
 		# Update the current state
 		agent.state = new_state
-	else:
+	if done:
 		# Reset the grid and state when game is over
-		print("game over, resetting...")
+		print(f"game over ({code}), resetting...")
 		grid.reset()
-		state = grid.start_state()
+		agent.state = (START_X, START_Y) # grid.start_state()
 		done = False
 
-	# Update the display
-	grid.draw(WIN, agent)
-	clock.tick(FPS)
+	x, y = agent.state
 
+	# Update the display
+	WIN.fill(BLACK)
+	grid.draw_dots_walls()
+	grid.draw_score(100)
+	grid.draw_pac_man(x, y, action)
+	grid.draw_ghosts()
+	pygame.display.update()
+	clock.tick(FPS)
 	
 pygame.quit()
