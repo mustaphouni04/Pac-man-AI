@@ -6,31 +6,13 @@ pygame.init()
 pygame.mixer.init()
 
 # Set up some constants
-FPS = 5
+GAMESPEED = 4
 GHOSTS_DELAY_TRACKING = (2, 5, 10, 15)
 WIDTH, HEIGHT = 1000, 400
 ROWS, COLS = 10, 25
 SQUARE_SIZE = WIDTH // COLS
-# INITIAL_MATRIX = np.array([
-#     [0, 1, 0, 2, 4],
-#     [1, 2, 0, 2, 0],
-#     [0, 2, 1, 2, 1],
-#     [1, 2, 0, 2, 0],
-#     [3, 2, 1, 0, 1],
-# ])
-# INITIAL_MATRIX = np.array([
-# [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-# [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-# [1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
-# [1, 2, 1, 2, 2, 0, 2, 2, 1, 2, 1],
-# [1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
-# [1, 2, 1, 2, 0, 0, 0, 2, 1, 2, 1],
-# [1, 2, 1, 2, 4, 0, 4, 2, 1, 2, 1],
-# [1, 2, 1, 2, 2, 2, 2, 2, 1, 2, 1],
-# [1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
-# [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-# [1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1]
-# ])
+closed = 0
+
 INITIAL_MATRIX = np.array([
 [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1],
 [0, 2, 2, 0, 2, 2, 0, 2, 1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2],
@@ -44,18 +26,32 @@ INITIAL_MATRIX = np.array([
 [1, 2, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 3, 1, 1, 1, 1, 1, 1, 1, 1]
 ])
 
+# INITIAL_MATRIX = np.array([
+# [2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 2, 0, 2, 0],
+# [2, 1, 2, 2, 2, 2, 2, 0, 2, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1],
+# [2, 1, 1, 1, 1, 1, 1, 1, 2, 0, 2, 2, 2, 0, 2, 2, 1, 1, 1, 1, 1, 1, 1, 2, 1],
+# [2, 1, 2, 2, 2, 0, 2, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 1, 2, 2, 2, 1],
+# [2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 2, 2, 1, 2, 2, 0, 2, 2, 1, 1, 1, 0, 0, 1, 1],
+# [2, 1, 0, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1, 2, 2, 2, 2, 1, 2],
+# [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 4, 1, 4, 2, 1, 2, 2, 1, 2, 0, 0, 0, 1, 2],
+# [2, 1, 2, 1, 2, 1, 2, 1, 1, 1, 2, 4, 1, 4, 2, 1, 1, 2, 0, 0, 0, 2, 2, 1, 2],
+# [2, 1, 2, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 2, 2, 2, 1, 1, 2],
+# [2, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 3, 0, 0, 0, 0, 2, 1, 1, 1, 1, 1, 2, 2]
+# ])
+
 # Hyperparameters
-TRAINING_GAMES = 50
+TRAIN = True
+TRAINING_GAMES = 400
 LIMIT_STEPS = 300
-LEARNING_RATE = 0.01
-DISCOUNT_FACTOR = 0.8
+LEARNING_RATE = 0.01 # how fast it learns
+DISCOUNT_FACTOR = 0.95 # how much it cares about immediate rewards
 PACDOT_REWARD = 2
 MOVE_PENALTY = -0.1
 WIN_REWARD = 100
-LOSE_PENALTY = -30
-EPSILON_START = 1
-EPSILON_END = 0.01
-EPSILON_DECAY = 0.999
+LOSE_PENALTY = -40
+EPSILON_START = 1 # exploration rate at the beggining (high randomness)
+EPSILON_END = 0.01 # exploration rate at the end (low randomness = exploitation)
+EPSILON_DECAY = 0.995 # how fast it goes from high to low randomness
 
 # Set up the display
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -147,18 +143,33 @@ class Grid:
 		# 295, 115, 15, -15
 		x, y = state_to_pos(state)
 		if action == 0: # UP
-			rotated_image = pygame.transform.rotate(pac_man_image_open, 115)
-			WIN.blit(rotated_image, (x, y))
+			if closed == 1:
+				rotated_image = pygame.transform.rotate(pac_man_image_closed, 90)
+				WIN.blit(rotated_image, (x, y))
+			else:
+				rotated_image = pygame.transform.rotate(pac_man_image_open, 115)
+				WIN.blit(rotated_image, (x, y))
 		elif action == 1: # DOWN
-			rotated_image = pygame.transform.rotate(pac_man_image_open, 295)
-			WIN.blit(rotated_image, (x, y))
+			if closed == 1:
+				rotated_image = pygame.transform.rotate(pac_man_image_closed, 270)
+				WIN.blit(rotated_image, (x, y))
+			else:
+				rotated_image = pygame.transform.rotate(pac_man_image_open, 295)
+				WIN.blit(rotated_image, (x, y))
 		elif action == 2: # LEFT
-			flipped_image = pygame.transform.flip(pac_man_image_open, True, False)
-			rotated_image = pygame.transform.rotate(flipped_image, -15)
-			WIN.blit(rotated_image, (x, y))
+			if closed == 1:
+				flipped_image = pygame.transform.flip(pac_man_image_closed, True, False)
+				WIN.blit(flipped_image, (x, y))
+			else:
+				flipped_image = pygame.transform.flip(pac_man_image_open, True, False)
+				rotated_image = pygame.transform.rotate(flipped_image, -15)
+				WIN.blit(rotated_image, (x, y))
 		elif action == 3: # RIGHT
-			rotated_image = pygame.transform.rotate(pac_man_image_open, 15)
-			WIN.blit(rotated_image, (x, y))	
+			if closed == 1:
+				WIN.blit(pac_man_image_closed, (x, y))
+			else:
+				rotated_image = pygame.transform.rotate(pac_man_image_open, 15)
+				WIN.blit(rotated_image, (x, y))	
 		
 	def draw_ghosts(self, ghosts):
 		# Draw ghosts
@@ -186,10 +197,11 @@ class Grid:
 		possible_tiles = empty_tiles(self.matrix)
 		return possible_tiles[random.randint(0, len(possible_tiles)-1)] # (7, 16)
 	
-	def step(self, state, action, is_agent=True):
+	def step(self, state, action, closed, is_agent=True):
 		# Calculate next state based on action
 		# If action leads to a wall, next_state = state
 		next_state = get_next_state(state, action)
+		closed = not closed
 		if not pos_in_grid(next_state):
 			print(f"{state} -> {next_state} -> {action}")
 
@@ -203,7 +215,7 @@ class Grid:
 		elif self.matrix[next_state] == 4:
 			# Pac-Man caught by ghost
 			done = True
-			reward = LOSE_PENALTY
+			# reward = LOSE_PENALTY
 			code = 1
 		else:
 			done = False
@@ -218,7 +230,7 @@ class Grid:
 				reward = MOVE_PENALTY
 				code = 3
 
-		return next_state, reward, done, code
+		return next_state, reward, done, code, closed
 
 
 # Agent class (Pac-man)
@@ -345,33 +357,48 @@ saved_vals = [0 for _ in range(4)]
 # Initialize the grid
 grid = Grid()
 
-# Training loop
-print("training agent...")
-for episode in range(TRAINING_GAMES): # number of games
+if TRAIN:
+	# Training loop
+	print("training agent...")
+	for episode in range(TRAINING_GAMES): # number of games
+		grid.reset()
+		agent.state = grid.start_state() # Start state from the grid
+		done = False
+		steps = 0
+		actions = np.array([0, 0, 0, 0])
+		while not done:
+			action = agent.choose_action(grid.matrix)
+			actions[action] += 1
+		
+			# Assume the game environment provides the next_state and reward.
+			next_state, reward, done, code, closed = grid.step(agent.state, action, closed)
+			if steps > LIMIT_STEPS:
+				done = True
+				reward = LOSE_PENALTY
+			agent.update_Q_table(action, reward, next_state)
+			agent.state = next_state
+			if done:
+				print(f"{episode}: code, {code_meaning[code]}, {steps} steps, {actions}")
+			steps += 1
+	print("agent trained")
+	agent.reset()
 	grid.reset()
-	agent.state = grid.start_state() # Start state from the grid
-	done = False
-	steps = 0
-	actions = np.array([0, 0, 0, 0])
-	while not done:
-		action = agent.choose_action(grid.matrix)
-		actions[action] += 1
-	
-		# Assume the game environment provides the next_state and reward.
-		next_state, reward, done, code = grid.step(agent.state, action)
-		if steps > LIMIT_STEPS:
-			done = True
-			reward = LOSE_PENALTY
-		agent.update_Q_table(action, reward, next_state)
-		agent.state = next_state
-		if done:
-			print(f"{episode}: code, {code_meaning[code]}, {steps} steps, {actions}")
-		steps += 1
-print("agent trained")
-agent.reset()
-grid.reset()
+
+	# Save the Q-table
+	np.save("assets/learned_q_table.npy", agent.Q_table)
+else:
+	# Load the Q-table
+	agent.Q_table = np.load("assets/learned_q_table.npy")
 
 # Main loop
+def update_display():
+	WIN.fill(BLACK)
+	grid.draw_dots_walls()
+	grid.draw_score(score)
+	grid.draw_pac_man(agent.state, action)
+	grid.draw_ghosts(ghosts)
+	pygame.display.update()
+
 pygame.mixer.music.load("assets/pacman_beginning.wav")
 
 action = 3
@@ -379,12 +406,9 @@ score = 0
 code = 1
 run = True
 done = True
-WIN.fill(BLACK)
-grid.draw_dots_walls()
-grid.draw_score(score)
-grid.draw_pac_man(agent.state, action)
-grid.draw_ghosts(ghosts)
-pygame.display.update()
+music = True
+playing = True
+update_display()
 pygame.mixer.music.play()
 while run:
 	for event in pygame.event.get():
@@ -392,27 +416,37 @@ while run:
 			run = False
 	
 	if pygame.mixer.music.get_busy():
-		continue
-
+		if music:
+			continue
+	else:
+		playing = False
+	
+	music = False
 	# Game logic
 	# move the agent
 	if not done:
 		# Choose an action
 		action = agent.choose_action(grid.matrix)
 		# Execute the action and get the new state
-		new_state, _, done, code = grid.step(agent.state, action)
+		new_state, reward, done, code, closed = grid.step(agent.state, action, closed)
 		# print(f"agent state: {agent.state} -> {action} -> {new_state}")
-		
+		# if steps > LIMIT_STEPS:
+		# 	done = True
+		# 	reward = LOSE_PENALTY
+		# agent.update_Q_table(action, reward, next_state)
+
 		# Update the current state
 		agent.state = new_state
 		if code == 2:
 			score += 10
+		# steps += 1
 	if done:
 		# Reset the grid and state when game is over
 		print(f"game over ({code_meaning[code]}), resetting...")
 		grid.reset()
 		agent.reset() # grid.start_state()
 		action = 3
+		steps = 0
 		for ghost in ghosts:
 			ghost.reset()
 		done = False
@@ -426,7 +460,7 @@ while run:
 		if g_action == -1:
 			continue
 		# Execute the action and get the new state
-		new_state, _, _, _ = grid.step(ghost.state, g_action, is_agent=False)
+		new_state, _, _, _, closed = grid.step(ghost.state, g_action, closed, is_agent=False)
 		# print(f"ghost state: {ghost.state} -> {g_action} -> {new_state}")
 		
 		# Update the current state
@@ -440,12 +474,11 @@ while run:
 			break
 
 	# Update the display
-	WIN.fill(BLACK)
-	grid.draw_dots_walls()
-	grid.draw_score(score)
-	grid.draw_pac_man(agent.state, action)
-	grid.draw_ghosts(ghosts)
-	pygame.display.update()
-	clock.tick(FPS)
+	update_display()
+	pygame.mixer.music.load("assets/pacman_chomp.wav")
+	if not playing:
+		pygame.mixer.music.play()
+		playing = True
+	clock.tick(GAMESPEED)
 	
 pygame.quit()
