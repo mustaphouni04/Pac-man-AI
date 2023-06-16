@@ -1,5 +1,5 @@
 # Pac-man-AI
-Reinforcement Learning applyed to Pac-man
+Reinforcement Learning applyed to Pac-man.
 
 ## Inspiration
 We've always been fans of classic arcade games and artificial intelligence, so we combined the two and created a Pac-Man using machine learning? We wanted to push the boundaries of how we perceive and play this game by incorporating modern AI techniques.
@@ -17,3 +17,7 @@ We used Python as our only programming language this time. The game's interface 
 We learned a great deal about reinforcement learning, particularly Q-learning, and how to implement it in a real-world project. We also gained experience with Pygame and honed our skills in algorithm design and implementation.
 ## What's next for Pac-man with Machine Learning
 We're considering implementing other types of reinforcement learning, such as deep Q-learning, to further improve Pac-Man's performance. We're also interested in improving the ghosts' AI, perhaps by incorporating machine learning for them as well. Additionally, we aim to refine the game's interface and add new features to make it even more engaging. Stay tuned!
+
+## Authors
+- Eric López
+- Mustapha El Aichouni
