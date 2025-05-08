@@ -1,5 +1,5 @@
 # Pac-man-AI
-Reinforcement Learning applyed to Pac-man.
+Reinforcement Learning applied to Pac-man.
 
 ## Inspiration
 We've always been fans of classic arcade games and artificial intelligence, so we combined the two and created a Pac-Man using machine learning? We wanted to push the boundaries of how we perceive and play this game by incorporating modern AI techniques.
